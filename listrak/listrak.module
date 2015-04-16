@@ -1,0 +1,275 @@
+<?php
+
+/**
+ * @file
+ * Provides base integration with the Listrak SOAP API.
+ *
+ * @author Tom Kirkpatrick (mrfelton), www.systemseed.com
+ * @author port to D7 David Morrison
+ */
+
+/**
+ * Implementation of hook_permission().
+ */
+function listrak_permission() {
+  return array(
+    'administer listrak configuration' => array(
+      'title' => t('Administer Listrak Integrations'),
+      'description' => t('Update and access Listrak integration information.'),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function listrak_menu() {
+  $items = array();
+  $items['admin/settings/listrak'] = array(
+    'title' => 'listrak',
+    'description' => 'Listrak Integration',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('listrak_api_settings_form'),
+    'access arguments' => array('administer listrak configuration'),
+    'file' => 'listrak.admin.inc',
+  );
+  /* what is this for?
+  $items['admin/settings/listrak/api'] = array(
+    'title' => 'API Settings',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+  */
+  return $items;
+}
+
+/**
+ * Retrieve listrak Client object to access the API with.
+ *
+ * This factory builds objects that can access the listrak API. The listrak API uses
+ * SOAP to access and requires a valid username and password. The listrak Client object
+ * automates usage of the username and password.
+ *
+ * The factory has default classes which are used. These can be overriden either
+ * with alternatice classes being passed in via the $options or by altering the
+ * default classes in the Drupal variables of listrak_class and listrak_soap_class.
+ * @see variable_set()
+ *
+ * For the available operation on the listrak API please refer to the listrak API
+ * documentation.
+ * @link https://webservices.listrak.com/SoapWSDL.aspx
+ *
+ * @param array $options
+ *   An array of options. The available options are:
+ *     - listrak_class: The listrak Client class to return. Defaults to ListrakClient.
+ *       This can be overridden by altering the Drupal variable for listrak_class.
+ *     - options: An array of options to pass into the Soap Client. This
+ *       is useful for cases when a proxy is used. For more detail see the
+ *       $options argument on the SoapClient. Defaults to configured value.
+ *       @link http://us2.php.net/manual/en/soapclient.soapclient.php
+ * @param bool $reset
+ *   Set to TRUE to clear the cache of the object.
+ *
+ * @return
+ *   SoapClient Object setup for the listrak configuration.
+ *   FALSE: if there was a problem building the object.
+ */
+function listrak_request(array $options = array(), $reset = FALSE) {
+  static $request_objects = array();
+
+  $options += array(
+    'user' => variable_get('listrak_user', NULL),
+    'pass' => variable_get('listrak_pass', NULL),
+    'cache' => TRUE,
+  );
+
+  // Clear the static cache of listrak Objects.
+  if ($reset) {
+    $request_objects = array();
+  }
+
+  // Return a cached object.
+  if (isset($request_object) && $options['cache']) {
+    return $request_object;
+  }
+
+  if ($endpoint = listrak_get_endpoint()) {
+    $listrak_class = (!empty($options['listrak_class'])) ? $options['listrak_class'] : variable_get('listrak_class', 'ListrakClient');
+    
+    // Add default SOAP Options.
+    if (!isset($options['options']) || !is_array($options['options'])) {
+      $options['options'] = array();
+    }
+    $options['options'] += array('soap_version' => SOAP_1_2);
+
+    // The proxy setting are only added if they were not passed in to the factory.
+    if (variable_get('listrak_proxy_host', NULL)) {
+      $options['options'] += array('proxy_host' => variable_get('listrak_proxy_host', NULL));
+      if (variable_get('listrak_proxy_login', NULL)) {
+        $options['options'] += array('proxy_login' => variable_get('listrak_proxy_login', NULL));
+      }
+      if (variable_get('listrak_proxy_pass', NULL)) {
+        $options['options'] += array('proxy_password' => variable_get('listrak_proxy_pass', NULL));
+      }
+      if (variable_get('listrak_proxy_port', NULL)) {
+        $options['options'] += array('proxy_port' => variable_get('listrak_proxy_port', NULL));
+      }
+    }
+
+    // Offer an opportunity for other modules to alter the options.
+    drupal_alter('listrak_client_options', $options);
+
+    $client = new $listrak_class($endpoint, $options);
+    if ($options['cache']) {
+      $request_object = $client;
+    }
+
+    // @todo Add error reporting if objects not properly created.
+    return $client;
+  }
+
+  // No valied endpoint was chosen.
+  watchdog('listrak', 'Invalid Listrak Endpoint requested.', WATCHDOG_ERROR);
+  return FALSE;
+}
+
+function listrak_subscribe($email, $lid, $override=FALSE) {
+  $client = listrak_request();
+  
+  $params = array(
+    'ListID' => $lid,
+    'ContactEmailAddress' => $email,
+    'OverrideUnsubscribe' => $override,
+  );
+  $response = $client->SubscribeContact($params);
+  return $response->SubscribeContactResult;
+}
+
+function listrak_unsubscribe($email, $lid) {
+  $client = listrak_request();
+  
+  $params = array(
+    'ListID' => $lid,
+    'ContactEmailAddress' => $email,
+  );
+  $response = $client->UnsubscribeContact($params);
+  return $response->UnsubscribeContactResult;
+}
+
+function listrak_subscribe_with_profile_data($email, $fields, $lid) {
+  $client = listrak_request();
+  $data = array();
+  
+  // Put the users email addresss in the first column.
+  $data[$email][] = $email;
+  $trigger_file_mappings[] = array(
+    'AttributeID' => 0,
+    'DefaultValue' => '',
+    'FileColumn' => 0,
+    'IsEmailAddressColumn' => TRUE,
+    'IsExternalEventColumn' => FALSE,
+  );
+  $count = 1;
+  foreach ($fields as $attribute_id => $value) {
+    $trigger_file_mappings[] = array(
+      'AttributeID' => $attribute_id,
+      'DefaultValue' => '',
+      'FileColumn' => $count,
+      'IsEmailAddressColumn' => FALSE,
+      'IsExternalEventColumn' => FALSE,
+    );
+    $data[$email][] = $value;
+    $count++;
+  }
+  
+  $data_stream = '';
+  // Build our data stream.
+  foreach ($data as $row) {
+    $data_stream .= implode('|', $row);
+  }
+  
+  // Buid up our final request paramaters.
+  $params = array(
+    'ListID' => $lid,
+    'WSImportDirectives' => array(
+      'ImportTypeEnum' => 'AddSubscribersAndProfileData',
+      'ImportProfileTypeEnum' => 'Update',
+      'FileName' => 'dummy',
+      'HasColumnNames' => FALSE,
+      'FileDelimiter' => '|',
+      'TextQualifier' => '',
+    ),
+    'TriggerFileMappings' => $trigger_file_mappings,
+    'ImportFileStream' => base64_encode($data_stream),
+  );
+  $response = $client->ConductorBulkLoadAndTriggerContacts($params);
+  return $response->ConductorBulkLoadAndTriggerContactsResult;
+}
+
+function listrak_get_subscribers($lid, $startdate=0, $enddate=NULL) {
+  return _listrak_get_subscribers($lid, 'subscribe', $startdate, $enddate);
+}
+
+function listrak_get_unsubscribers($lid, $startdate=0, $enddate=NULL) {
+  return _listrak_get_subscribers($lid, 'unsubscribe', $startdate, $enddate);
+}
+
+function _listrak_get_subscribers($lid, $type='subscribe', $startdate=0, $enddate=NULL) {
+  $client = listrak_request();
+  
+  $params = array(
+    'ListID' => $lid,
+    'Page' => 0,
+  );
+  
+  if ($startdate || $enddate) {
+    if (is_numeric($startdate)) {
+      $startdate = date("Y-m-d", $startdate) . 'T' . date("H:i:s", $startdate);
+    }
+    if (is_numeric($enddate)) {
+      $enddate = date("Y-m-d", $enddate) . 'T' . date("H:i:s", $enddate);
+    }
+    elseif ($enddate === NULL) {
+      $enddate = date("Y-m-d") . 'T' . date("H:i:s");
+    }
+    $params['StartDate'] = $startdate;
+    $params['EndDate'] = $enddate;
+  }
+  
+  switch ($type) {
+    case 'subscribe':
+      if (isset($params['StartDate'])) {
+        $response = $client->ReportRangeSubscribedContacts($params);
+        $result = $response->ReportRangeSubscribedContactsResult;
+      }
+      else {
+        $response = $client->ReportSubscribedContacts($params);
+        $result = $response->ReportSubscribedContactsResult;
+      }
+      break;
+     
+    case 'unsubscribe':
+      if (isset($params['StartDate'])) {
+        $response = $client->ReportRangeListContactRemoval($params);
+        $result = $response->ReportRangeListContactRemovalResult;
+      }
+      else {
+        $response = $client->ReportListContactRemoval($params);
+        $result = $response->ReportListContactRemovalResult;
+      }
+      break;
+  }
+  
+  return $result;
+}
+
+/**
+ * Get the link to the SOAP API for the request.
+ *
+ * @return
+ *   The reference URL.
+ */
+function listrak_get_endpoint() {
+  return 'https://webservices.listrak.com/v31/IntegrationService.asmx?WSDL';
+}
+

@@ -1,0 +1,5 @@
+name = Custom AR Subscriber
+description = A custom module developed to add unique subscribe capabilities for both print and digital content.
+core = 7.x
+package = Listrak
+dependencies[] = listrak

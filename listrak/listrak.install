@@ -1,0 +1,48 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Listrak Installation
+ *
+ * @author Tom Kirkpatrick
+ * @author port to D7 David Morrison
+ */
+
+/**
+ * Implementation of hook_requirements().
+ */
+function listrak_requirements($phase) {
+  $requirements = array();
+  // Ensure translations do not break at install time
+  $t = get_t();
+
+  // Verify the SOAP library is installed. While it is provided by default
+  // with PHP 5, RHEL and CentOS do not have it enabled by default.
+  $requirements['soap'] = array(
+    'title' => $t('SOAP Library'),
+  );
+  if (function_exists('is_soap_fault')) {
+    $requirements['soap']['value'] = $t('Installed');
+    $requirements['soap']['severity'] = REQUIREMENT_OK;
+  }
+  else {
+    $requirements['soap']['value'] = $t('Not Installed');
+    $requirements['soap']['severity'] = REQUIREMENT_ERROR;
+    $requirements['soap']['description'] = $t('The PHP SOAP Library is not installed. Please install the SOAP Library. Details at %url.', array('%url' => 'http://php.net/soap'));
+  }
+
+  return $requirements;
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function listrak_uninstall() {
+  variable_del('listrak_listid');
+  variable_del('listrak_class');
+  variable_del('listrak_proxy_login');
+  variable_del('listrak_proxy_pass');
+  variable_del('listrak_proxy_host');
+  variable_del('listrak_proxy_port');
+}

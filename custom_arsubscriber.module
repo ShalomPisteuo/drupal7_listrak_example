@@ -1,0 +1,173 @@
+<?php
+
+/**
+ * Implements hook_help.
+ *
+ * Displays help and module information.
+ */
+function custom_arsubscriber_help($path, $arg) {
+  switch ($path) {
+    case "admin/help#custom_arsubscriber":
+      return '<p>' . t("Displays a block on the site that allows site visitors to subscribe to both print and digital content on one form.") . '</p>';
+      break;
+  }
+}
+
+/**
+ * Implements hook_block_info().
+ *
+ * Creates the needed blocks to house subscriber forms.
+ */
+function custom_arsubscriber_block_info() {
+  $blocks = array();
+  
+	// AR Subscriber block
+	$blocks['custom_arsubscriber'] = array(
+    'info' => t('Custom AR Subscriber'),
+    'cache' => DRUPAL_CACHE_GLOBAL,
+  );
+	
+	// ARC Subscriber block
+	$blocks['custom_arcsubscriber'] = array(
+		'info' => t('Custom ARC Subscriber'),
+		'cache' => DRUPAL_CACHE_GLOBAL,
+	);
+	
+	// BHPH Subscriber block
+	$blocks['custom_bhphsubscriber'] = array(
+		'info' => t('Custom BHPH Subscriber'),
+		'cache' => DRUPAL_CACHE_GLOBAL,
+	);
+	
+	// SP Subscriber block
+	$blocks['custom_spsubscriber'] = array(
+		'info' => t('Custom SP Subscriber'),
+		'cache' => DRUPAL_CACHE_GLOBAL,
+	);
+	
+	return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ *
+ * Prepares the contents of the block.
+ */
+function custom_arsubscriber_block_view($delta = '') {
+  // Create an array that will be returned as our block
+  $block = array();
+ 
+  switch($delta) {
+		case 'custom_arsubscriber':
+			$block['subject'] = NULL;
+			$block['content'] = drupal_get_form('custom_subscriber_ar_form');
+			break;
+		case 'custom_arcsubscriber':
+			$block['subject'] = NULL;
+			$block['content'] = drupal_get_form('custom_subscriber_arc_form');
+			break;
+		case 'custom_bhphsubscriber':
+			$block['subject'] = NULL;
+			$block['content'] = drupal_get_form('custom_subscriber_bhph_form');
+			break;
+		case 'custom_spsubscriber':
+			$block['subject'] = NULL;
+			$block['content'] = drupal_get_form('custom_subscriber_sp_form');
+			break;
+	}
+	return $block;
+}
+
+/*
+ * Includes the forms, form validation and form submit logic for the different blocks.
+ */
+require_once ( dirname(__FILE__) . '/custom_arsubscriber.subscriberwebforms.inc');
+
+/*
+ * Includes the Drupal mail instructions.
+ */
+require_once ( dirname(__FILE__) . '/custom_arsubscriber.subscriberemails.inc');
+
+/*
+ * Includes the Listrak subscribe, unsubscribe and update functions.
+ */
+require_once ( dirname(__FILE__) . '/custom_arsubscriber.listrakfunctions.inc');
+
+/**
+ * Implementation of hook_menu().
+ *
+ * Create front end subscription management pages
+ */
+function custom_arsubscriber_menu() {
+  $items = array();
+	
+	// create front end subscription management page
+	$items['subscriptions/manage'] = array(
+		'title' => 'Manage your AutoRemarketing Email Newsletter Subscriptions',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('custom_subscriber_manage_form'),
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'custom_arsubscriber.subscriberwebforms.inc',
+	);
+  
+	return $items;
+}
+
+/*
+ * Implements hook_mollom_form_list
+ *
+ * Add custom webform to mollom list. SPAM protection.
+ */
+function custom_arsubscriber_mollom_form_list() {
+  $forms['custom_subscriber_ar_form'] = array(
+    'title' => 'Custom AR newsletter and print subscribe form',
+  );
+  $forms['custom_subscriber_arc_form'] = array(
+    'title' => 'Custom ARC newsletter and print subscribe form',
+  );
+  $forms['custom_subscriber_bhph_form'] = array(
+    'title' => 'Custom BHPH newsletter and print subscribe form',
+  );
+  $forms['custom_subscriber_sp_form'] = array(
+    'title' => 'Custom SP newsletter and print subscribe form',
+  );
+  return $forms;
+}
+
+/*
+ * Implements hook_mollom_form_info
+ *
+ * Return information about a form that can be protected by Mollom. SPAM protection.
+ */
+function custom_arsubscriber_mollom_form_info($form_id) {
+  switch ($form_id) {
+		// Custom Subscriber AR Form
+		case 'custom_subscriber_ar_form':
+			$form_info = array(
+				'mode' => MOLLOM_MODE_CAPTCHA,
+			);
+		return $form_info;
+		
+		// Custom Subscriber ARC Form
+		case 'custom_subscriber_arc_form':
+			$form_info = array(
+				'mode' => MOLLOM_MODE_CAPTCHA,
+			);
+		return $form_info;
+	
+		// Custom Subscriber BHPH Form
+		case 'custom_subscriber_bhph_form':
+			$form_info = array(
+				'mode' => MOLLOM_MODE_CAPTCHA,
+			);
+		return $form_info;
+	
+		// Custom Subscriber SP Form
+		case 'custom_subscriber_sp_form':
+			$form_info = array(
+				'mode' => MOLLOM_MODE_CAPTCHA,
+			);
+		return $form_info;
+	}
+}

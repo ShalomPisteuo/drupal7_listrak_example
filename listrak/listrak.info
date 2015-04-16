@@ -1,0 +1,7 @@
+name = Listrak Integration
+description = "Provides base integration with the Listrak SOAP API."
+core = 7.x
+files[] = listrak.listrakclient.inc
+package = Listrak
+php = 5.2
+

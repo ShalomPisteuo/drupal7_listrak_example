@@ -1,0 +1,51 @@
+
+Listrak (http://www.listrak.com/) provides a SOAP based API to
+access their services. This is a standard SOAP interface and the ACS module
+attempts to automate some of the regular tasks and centralize the API
+configuration.
+
+Working WIth The Listrak API
+------------------------
+There are 3 parts to working with the listrak module to interact with the API.
+First, get an object that can make calls to the API. To do this use the
+listrak_request() function like:
+
+$client = listrak_request();
+
+This will get a ListrakClient object configured for the API.
+
+Then, make the request like:
+
+$response = $client->callbackName(array('foo' => 'bar', 'bar' => 'foo'));
+
+In place of callbackName use the operation name. The operation should be passed
+an argument with an array of properties that need to be passed to ACS. The
+exception is the token which is required but automated by the class.
+
+The response object has a property on it with the result. Accessing the result
+looks like:
+
+$result = $response->callbackNameResult;
+
+The result value on the new object is at the property name of the operation
+with 'Result' appended to it.
+
+Overriding the ListrakClient Class
+------------------------------
+There are two ways to use a class other than ListrakClient to make the calls to the
+Listrak API. First, there is a variable with the name listrak_class that holds the name
+of the class. This can be changed in the settings.php file or with a
+variable_set(). This will change the class usage site wide.
+
+To use a different class for an individual request the class name can be passed
+in like:
+
+$client = listrak_request('access', array(
+  'class' => 'alternate_class_name',
+  'cache' = FALSE, )
+);
+
+The class name is not the only option that need to be passed in. ACSClient
+objects are cached for each of the API. Setting cache to FALSE will bypass the
+caching and create a new object.
+
