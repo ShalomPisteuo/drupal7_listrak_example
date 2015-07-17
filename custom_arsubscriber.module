@@ -1,6 +1,14 @@
 <?php
 
 /**
+ * @file
+ *   Provides integration with Listrak Email API and creates custom signup webforms.
+ *
+ * @author
+ *   David Morrison http://www.sacommunications.com
+ */
+
+/**
  * Implements hook_help.
  *
  * Displays help and module information.
